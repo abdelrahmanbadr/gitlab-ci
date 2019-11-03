@@ -1,0 +1,40 @@
+stages:
+  - preparation
+  - test
+
+image: edbizarro/gitlab-ci-pipeline-php:7.3
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - node_modules/
+    - vendor/
+
+composer:
+  stage: preparation
+  script:
+    - php -v
+    - composer install --prefer-dist --no-ansi --no-interaction --no-progress --no-scripts
+    - cp .env.testing.example .env
+    - php artisan key:generate
+  artifacts:
+    paths:
+      - vendor/
+      - .env
+    expire_in: 1 days
+    when: always
+  cache:
+    paths:
+      - vendor/
+
+test:
+  stage: test
+  services:
+    - mariadb:10.3.11
+  variables:
+    MYSQL_DATABASE: "test"
+    MYSQL_ROOT_PASSWORD: "secret"
+  script:
+    - php artisan migrate --seed
+    - vendor/bin/phpunit
+

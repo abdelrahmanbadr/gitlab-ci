@@ -1,0 +1,27 @@
+image: lorisleiva/laravel-docker:latest
+
+phpunit:
+  stage: test
+  script:
+    - composer install --prefer-dist --no-ansi --no-interaction --no-progress --no-scripts
+    - cp .env.example .env
+    - php artisan key:generate
+    - phpunit --coverage-text --colors=never
+
+cache:
+
+  # We key the cache using the branch's unique identifier.
+  key: ${CI_COMMIT_REF_SLUG}
+
+  paths:
+    # We only want to cache the vendor folder.
+    - vendor/
+
+codestyle:
+  # Let's run that in parallel with phpunit.
+  stage: test
+  cache: {} # Override with an empty object.
+  script:
+    # We'll comply with the PSR2 standard and check all .php file in our app folder.
+    - phpcs --standard=PSR2 --extensions=php app
+

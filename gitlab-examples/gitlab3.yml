@@ -1,0 +1,68 @@
+image: lorisleiva/laravel-docker:latest
+
+
+cache:
+  # We key the cache using the branch's unique identifier.
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - node_modules/
+    - vendor/
+
+
+# The job's name.
+composer:
+  # The job's stage (build, test or deploy).
+  stage: build
+  # What to run on the job.
+  script:
+    - composer install --prefer-dist --no-ansi --no-interaction --no-progress --no-scripts
+    - cp .env.example .env
+    - php artisan key:generate
+  artifacts:
+    paths:
+      - vendor/
+      - .env
+    #expire_in: 1 month //optional
+
+npm:
+  # Same stage as `composer` so that they run in parallel.
+  stage: build
+  # Cache the `node_modules` folder
+  # using the `npm` suffix on the key.
+  #  cache:
+  #    key: ${CI_COMMIT_REF_SLUG}-npm
+  #    paths:
+  #      - node_modules/
+
+  # Install and compile.
+  script:
+    - npm install
+    - npm run production
+
+  # Provide the other jobs of the pipeline with
+  # the node dependencies and the compiled assets.
+  artifacts:
+    expire_in: 1 month
+    paths:
+      - node_modules/
+      - public/css/
+      - public/js/
+
+phpunit:
+  stage: test
+  # List of jobs from which it will download the artifacts.
+  dependencies:
+    - composer
+  script:
+    - phpunit --coverage-text --colors=never
+
+codestyle:
+  # Let's run that in parallel with phpunit.
+  stage: test
+  cache: {} # Override with an empty object.
+  dependencies: []
+  script:
+    # We'll comply with the PSR2 standard and check all .php file in our app folder.
+    - phpcs --standard=PSR2 --extensions=php app
+#    - phpcs --standard=PSR2 --extensions=php --ignore=app/Support/helpers.php app
+

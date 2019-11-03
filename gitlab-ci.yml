@@ -1,0 +1,44 @@
+# Select image from https://hub.docker.com/_/php/
+image: php:7
+
+cache:
+  # We key the cache using the branch's unique identifier.
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - vendor/
+
+
+services:
+  - name: mysql:latest
+    alias: mysql-server
+    entrypoint: ['/entrypoint.sh', '--default-authentication-plugin=mysql_native_password']
+
+variables:
+  # Configure mysql service (https://hub.docker.com/_/mysql/)
+  MYSQL_DATABASE: hello_world_test
+  DB_HOST: mysql
+  DB_CONNECTION: mysql
+  MYSQL_ROOT_PASSWORD: secret
+  MYSQL_USER: user
+  MYSQL_PASSWORD: secret
+
+# test PHP7 with MySQL
+test:mysql:
+  script:
+    # Install git, the php image doesn't have installed
+    - apt-get update -yqq
+    - apt-get install git -yqq
+
+    # Install mysql driver
+    - docker-php-ext-install pdo_mysql
+
+    # Install composer
+    - curl -sS https://getcomposer.org/installer | php
+
+    # Install all project dependencies
+    - php composer.phar install
+    - cp .env.example .env
+    - php artisan migrate:fresh --seed
+    - vendor/bin/phpunit
+
+
