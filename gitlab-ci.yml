@@ -38,6 +38,7 @@ test:mysql:
     # Install all project dependencies
     - php composer.phar install
     - cp .env.example .env
+    - php artisan key:generate
     - php artisan migrate:fresh --seed
     - vendor/bin/phpunit
 
