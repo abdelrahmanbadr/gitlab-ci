@@ -1,45 +1,71 @@
-# Select image from https://hub.docker.com/_/php/
-image: php:7
+stages:
+  - preparation
+  - test
+  - security
 
-cache:
-  # We key the cache using the branch's unique identifier.
-  key: ${CI_COMMIT_REF_SLUG}
-  paths:
-    - vendor/
-
+image: edbizarro/gitlab-ci-pipeline-php:7.2
 
 services:
   - name: mysql:latest
-    alias: mysql-server
-    entrypoint: ['/entrypoint.sh', '--default-authentication-plugin=mysql_native_password']
-
+  
 variables:
-  # Configure mysql service (https://hub.docker.com/_/mysql/)
-  MYSQL_DATABASE: hello_world_test
+  MYSQL_DATABASE: scratchpay_test
+  MYSQL_USER: scratch_team
+  MYSQL_PASSWORD: secret_password
+  MYSQL_ROOT_PASSWORD: top_secret
   DB_HOST: mysql
-  DB_CONNECTION: mysql
-  MYSQL_ROOT_PASSWORD: secret
-  MYSQL_USER: user
-  MYSQL_PASSWORD: secret
 
-# test PHP7 with MySQL
-test:mysql:
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - node_modules/
+    - vendor/
+
+preparation:
+  stage: preparation
   script:
-    # Install git, the php image doesn't have installed
-    - apt-get update -yqq
-    - apt-get install git -yqq
-
-    # Install mysql driver
-    - docker-php-ext-install pdo_mysql
-
-    # Install composer
-    - curl -sS https://getcomposer.org/installer | php
-
-    # Install all project dependencies
-    - php composer.phar install
-    - cp .env.example .env
+    - php -v
+    - composer install --prefer-dist --no-ansi --no-interaction --no-progress --no-scripts
+    - cp .env.testing.example .env
     - php artisan key:generate
-    - php artisan migrate:fresh --seed
-    - vendor/bin/phpunit
 
+  artifacts:
+    paths:
+      - vendor/
+      - .env
+    expire_in: 1 days
+    when: always
+  cache:
+    paths:
+      - vendor/
 
+test:
+  stage: test
+  script:
+    - php artisan config:cache
+    - php artisan db:seed
+    - php artisan db:migrate
+    - ./vendor/bin/phpunit
+
+codestyle:
+  stage: test
+  script:
+    - find . \( -path ./vendor -o -path ./storage \) -prune -o -name "*.php" -exec php -l {} > /dev/null \;
+    - ./vendor/bin/phpcs .
+    - ./vendor/bin/phpstan analyse --no-progress --level 0 .
+    - ./vendor/bin/phpmd app/ text unusedcode
+
+# Check if the application uses dependencies with known security vulnerabilities.
+security-check:
+  stage: security
+  script:
+    - sh vendor/pheromone/phpcs-security-audit/symlink.sh
+    - ./vendor/bin/phpcs -np --standard=./vendor/pheromone/phpcs-security-audit/example_base_ruleset.xml app/
+    - test -d security-checker || git clone https://github.com/sensiolabs/security-checker.git
+    - cd security-checker
+    - composer install
+    - php security-checker security:check ../composer.lock
+  dependencies: []
+  cache:
+    paths:
+      - security-checker/
