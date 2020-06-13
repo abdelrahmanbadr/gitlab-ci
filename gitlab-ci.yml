@@ -50,7 +50,6 @@ test:
 codestyle:
   stage: test
   script:
-    - find . \( -path ./vendor -o -path ./storage \) -prune -o -name "*.php" -exec php -l {} > /dev/null \;
     - ./vendor/bin/phpcs .
     - ./vendor/bin/phpstan analyse --no-progress --level 0 .
     - ./vendor/bin/phpmd app/ text unusedcode
